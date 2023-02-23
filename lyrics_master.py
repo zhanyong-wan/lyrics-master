@@ -64,12 +64,13 @@ def BuildTrigramFrequencyMap(lines: List[str]) -> Dict[str, Dict[str, Dict[str, 
     for line in lines:
         ch0 = ""
         ch1 = ""
+        ch2 = ""
         for ch2 in line:
             map[ch0][ch1][ch2] += 1
             ch0 = ch1
             ch1 = ch2
-        map[ch0][ch1][""] += 1
-        map[ch1][""][""] += 1
+        map[ch1][ch2][""] += 1
+        map[ch2][""][""] += 1
     return map
 
 
