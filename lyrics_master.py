@@ -73,6 +73,28 @@ def BuildTrigramFrequencyMap(lines: List[str]) -> Dict[str, Dict[str, Dict[str, 
     return map
 
 
+def BuildQuadgramFrequencyMap(
+    lines: List[str],
+) -> Dict[str, Dict[str, Dict[str, Dict[str, int]]]]:
+    map: Dict[str, Dict[str, Dict[str, Dict[str, int]]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: 0)))
+    )
+    for line in lines:
+        ch0 = ""
+        ch1 = ""
+        ch2 = ""
+        ch3 = ""
+        for ch3 in line:
+            map[ch0][ch1][ch2][ch3] += 1
+            ch0 = ch1
+            ch1 = ch2
+            ch2 = ch3
+        map[ch1][ch2][ch3][""] += 1
+        map[ch2][ch3][""][""] += 1
+        map[ch3][""][""][""] += 1
+    return map
+
+
 def PrintFrequencyMap(freq_map: Dict[str, int]) -> None:
     freq_list: List[Tuple[int, str]] = []
     for ch, count in freq_map.items():
@@ -99,6 +121,7 @@ lines = NormalizeFileLines(LUO_DAYOU_LYRICS_FILE)
 uni_freq_map = BuildUnigramFrequencyMap(lines)
 bi_freq_map = BuildBigramFrequencyMap(lines)
 tri_freq_map = BuildTrigramFrequencyMap(lines)
+quad_freq_map = BuildQuadgramFrequencyMap(lines)
 
 lyrics = ""
 for _ in range(NUM_CHARS_PER_SONG):
@@ -113,7 +136,7 @@ print(lyrics)
 lyrics = ""
 ch = ""
 for _ in range(NUM_CHARS_PER_SONG):
-    freq_map = bi_freq_map[ch]
+    freq_map: Dict[str, int] = bi_freq_map[ch]
     ch = WeightedSample(freq_map)
     if ch:
         lyrics += ch
@@ -126,7 +149,7 @@ lyrics = ""
 ch0 = ""
 ch1 = ""
 for _ in range(NUM_CHARS_PER_SONG):
-    freq_map = tri_freq_map[ch0][ch1]
+    freq_map: Dict[str, int] = tri_freq_map[ch0][ch1]
     if len(freq_map) <= 1:
         freq_map = bi_freq_map[ch1]
     ch2 = WeightedSample(freq_map)
@@ -136,5 +159,26 @@ for _ in range(NUM_CHARS_PER_SONG):
         lyrics += "\n"
     ch0 = ch1
     ch1 = ch2
+print("----")
+print(lyrics)
+
+lyrics = ""
+ch0 = ""
+ch1 = ""
+ch2 = ""
+for _ in range(NUM_CHARS_PER_SONG):
+    freq_map: Dict[str, int] = quad_freq_map[ch0][ch1][ch2]
+    if len(freq_map) <= 1:
+        freq_map = tri_freq_map[ch1][ch2]
+    if len(freq_map) <= 1:
+        freq_map = bi_freq_map[ch2]
+    ch3 = WeightedSample(freq_map)
+    if ch3:
+        lyrics += ch3
+    else:
+        lyrics += "\n"
+    ch0 = ch1
+    ch1 = ch2
+    ch2 = ch3
 print("----")
 print(lyrics)
