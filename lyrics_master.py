@@ -3,6 +3,8 @@
 
 """Generates lyrics based on sample input."""
 
+from typing import Dict, List, Tuple
+
 import collections
 import io
 import random
@@ -13,8 +15,8 @@ LUO_DAYOU_LYRICS_FILE = "data/luo_dayou_lyrics.txt"
 NUM_CHARS_PER_SONG = 200
 
 
-def NormalizeFileLines(path):
-    normalized_lines = []
+def NormalizeFileLines(path: str) -> List[str]:
+    normalized_lines: List[str] = []
     for line in io.open(path, mode="r", encoding="utf-8").readlines():
         line = line.strip()
         if not line or ("罗大佑" in line):
@@ -34,8 +36,8 @@ def NormalizeFileLines(path):
     return normalized_lines
 
 
-def BuildUnigramFrequencyMap(lines):
-    map = defaultdict(lambda: 0)
+def BuildUnigramFrequencyMap(lines: List[str]) -> Dict[str, int]:
+    map: Dict[str, int] = defaultdict(lambda: 0)
     for line in lines:
         for ch in line:
             map[ch] += 1
@@ -43,10 +45,11 @@ def BuildUnigramFrequencyMap(lines):
     return map
 
 
-def BuildBigramFrequencyMap(lines):
-    map = defaultdict(lambda: defaultdict(lambda: 0))
+def BuildBigramFrequencyMap(lines: List[str]) -> Dict[str, Dict[str, int]]:
+    map: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(lambda: 0))
     for line in lines:
         ch0 = ""
+        ch1 = ""
         for ch1 in line:
             map[ch0][ch1] += 1
             ch0 = ch1
@@ -54,8 +57,10 @@ def BuildBigramFrequencyMap(lines):
     return map
 
 
-def BuildTrigramFrequencyMap(lines):
-    map = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: 0)))
+def BuildTrigramFrequencyMap(lines: List[str]) -> Dict[str, Dict[str, Dict[str, int]]]:
+    map: Dict[str, Dict[str, Dict[str, int]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(lambda: 0))
+    )
     for line in lines:
         ch0 = ""
         ch1 = ""
@@ -68,8 +73,8 @@ def BuildTrigramFrequencyMap(lines):
     return map
 
 
-def PrintFrequencyMap(freq_map):
-    freq_list = []
+def PrintFrequencyMap(freq_map: Dict[str, int]) -> None:
+    freq_list: List[Tuple[int, str]] = []
     for ch, count in freq_map.items():
         freq_list.append((count, ch))
     freq_list = sorted(freq_list, reverse=True)
@@ -78,7 +83,7 @@ def PrintFrequencyMap(freq_map):
         print("%s: %d" % (ch, count))
 
 
-def WeightedSample(freq_map):
+def WeightedSample(freq_map: Dict[str, int]) -> str:
     total_count = sum(freq_map.values())
     i = random.randrange(total_count)
     start = 0
