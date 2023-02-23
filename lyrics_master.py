@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 """Generates lyrics based on sample input."""
@@ -65,18 +65,18 @@ def BuildTrigramFrequencyMap(lines):
 
 def PrintFrequencyMap(freq_map):
   freq_list = []
-  for ch, count in freq_map.iteritems():
+  for ch, count in freq_map.items():
     freq_list.append((count, ch))
   freq_list = sorted(freq_list, reverse=True)
 
   for count, ch in freq_list:
-    print '%s: %d' % (ch, count)
+    print('%s: %d' % (ch, count))
 
 def WeightedSample(freq_map):
   total_count = sum(freq_map.values())
   i = random.randrange(total_count)
   start = 0
-  for x, count in freq_map.iteritems():
+  for x, count in freq_map.items():
     if start <= i and i < start + count:
       return x
     start += count
@@ -95,8 +95,8 @@ for _ in range(NUM_CHARS_PER_SONG):
     lyrics += ch
   else:
     lyrics += '\n'
-print '----'
-print lyrics
+print('----')
+print(lyrics)
 
 lyrics = ''
 ch = ''
@@ -107,8 +107,8 @@ for _ in range(NUM_CHARS_PER_SONG):
     lyrics += ch
   else:
     lyrics += '\n'
-print '----'
-print lyrics
+print('----')
+print(lyrics)
 
 lyrics = ''
 ch0 = ''
@@ -124,8 +124,8 @@ for _ in range(NUM_CHARS_PER_SONG):
     lyrics += '\n'
   ch0 = ch1
   ch1 = ch2
-print '----'
-print lyrics
+print('----')
+print(lyrics)
   
   
 
