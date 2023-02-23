@@ -3,10 +3,11 @@
 
 """Generates lyrics based on sample input."""
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, TypeVar
 
 import collections
 import io
+import math
 import random
 
 defaultdict = collections.defaultdict
@@ -106,11 +107,49 @@ def PrintFrequencyMap(freq_map: Dict[str, int]) -> None:
         print("%s: %d" % (ch, count))
 
 
-def WeightedSample(freq_map: Dict[str, int]) -> str:
-    total_count = sum(freq_map.values())
+T = TypeVar("T")
+
+
+def PickTopP(xs: List[T], top_p: float) -> List[T]:
+    num_to_keep = math.ceil(top_p * len(xs))
+    if num_to_keep <= 0:
+        num_to_keep = 1
+    return xs[:num_to_keep]
+
+
+def WeightedSample(
+    freq_map: Dict[str, int], temperature: float = 0.5, top_p: float = 0.3
+) -> str:
+    """Picks one char randomly.
+
+    Args:
+        freq_map: map from a char to its frequency
+        temperature: a float in [0, 1] that determines how wild the pick can be.
+            0 means that we will always pick the char with the highest frequency.
+            0.5 means that the probability of a char being picked is proportional
+            to its frequency in the map.
+            1 means that all chars in `freq_map` are considered with equal probability.
+        top_p: a float in [0, 1] that determines how tolerant the pick is.
+            0 means that only the best choice is considered.
+            0.5 means the best half of the valid choices are considered.
+            1 means that all valid choices are considered.
+    """
+
+    assert 0 <= temperature
+    assert temperature <= 1
+    assert 0 <= top_p
+    assert top_p <= 1
+
+    # Sort the entries by frequency, descending.
+    sorted_list = sorted(
+        freq_map.items(), key=lambda ch_and_freq: ch_and_freq[1], reverse=True
+    )
+    candidates = PickTopP(sorted_list, top_p)
+    filtered_freq_map = {ch: freq for ch, freq in candidates}
+    total_count = sum(filtered_freq_map.values())
     i = random.randrange(total_count)
     start = 0
-    for x, count in freq_map.items():
+    for x, count in filtered_freq_map.items():
         if start <= i and i < start + count:
             return x
         start += count
