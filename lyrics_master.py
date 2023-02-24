@@ -5,6 +5,7 @@
 
 from typing import Dict, List, Tuple, TypeVar
 
+import argparse
 import collections
 import io
 import math
@@ -117,9 +118,24 @@ def PickTopP(xs: List[T], top_p: float) -> List[T]:
     return xs[:num_to_keep]
 
 
-def WeightedSample(
-    freq_map: Dict[str, int], temperature: float = 0.5, top_p: float = 0.3
-) -> str:
+def AdjustWeightByTemperature(
+    freq_map: Dict[str, int], temperature: float
+) -> Dict[str, float]:
+
+    assert 0 <= temperature
+    assert temperature <= 1
+
+    # map: 0 => 10, 0.5 => 1, 1 => 0
+    #   0.5 - t: 0 => 0.5, 0.5 => 0, 1 => -0.5
+    #   1 - 2t: 0 => 1, 0.5 => 0, 1 => -1
+    #   10^(1 - 2t): 0 => 10, 0.5 => 1, 1 => 0.1
+    return {
+        ch: math.pow(freq, math.pow(10, 1 - 2 * temperature))
+        for ch, freq in freq_map.items()
+    }
+
+
+def WeightedSample(freq_map: Dict[str, int], temperature: float, top_p: float) -> str:
     """Picks one char randomly.
 
     Args:
@@ -145,80 +161,116 @@ def WeightedSample(
         freq_map.items(), key=lambda ch_and_freq: ch_and_freq[1], reverse=True
     )
     candidates = PickTopP(sorted_list, top_p)
-    filtered_freq_map = {ch: freq for ch, freq in candidates}
-    total_count = sum(filtered_freq_map.values())
-    i = random.randrange(total_count)
+    filtered_freq_map = AdjustWeightByTemperature(
+        {ch: freq for ch, freq in candidates}, temperature
+    )
+    total_weight: float = sum(filtered_freq_map.values())
+    r = random.random() * total_weight
     start = 0
-    for x, count in filtered_freq_map.items():
-        if start <= i and i < start + count:
+    for x, weight in filtered_freq_map.items():
+        if start <= r and r < start + weight:
             return x
-        start += count
+        start += weight
     return ""
 
 
-random.seed()
-lines = NormalizeFileLines(LUO_DAYOU_LYRICS_FILE)
-uni_freq_map = BuildUnigramFrequencyMap(lines)
-bi_freq_map = BuildBigramFrequencyMap(lines)
-tri_freq_map = BuildTrigramFrequencyMap(lines)
-quad_freq_map = BuildQuadgramFrequencyMap(lines)
+def FloatFrom0To1(text: str) -> float:
+    try:
+        x = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text} is not a floating-point literal.")
 
-lyrics = ""
-for _ in range(NUM_CHARS_PER_SONG):
-    ch = WeightedSample(uni_freq_map)
-    if ch:
-        lyrics += ch
-    else:
-        lyrics += "\n"
-print("----")
-print(lyrics)
+    if x < 0.0 or x > 1.0:
+        raise argparse.ArgumentTypeError(f"{text} is not in the range [0.0, 1.0].")
+    return x
 
-lyrics = ""
-ch = ""
-for _ in range(NUM_CHARS_PER_SONG):
-    freq_map: Dict[str, int] = bi_freq_map[ch]
-    ch = WeightedSample(freq_map)
-    if ch:
-        lyrics += ch
-    else:
-        lyrics += "\n"
-print("----")
-print(lyrics)
 
-lyrics = ""
-ch0 = ""
-ch1 = ""
-for _ in range(NUM_CHARS_PER_SONG):
-    freq_map: Dict[str, int] = tri_freq_map[ch0][ch1]
-    if len(freq_map) <= 1:
-        freq_map = bi_freq_map[ch1]
-    ch2 = WeightedSample(freq_map)
-    if ch2:
-        lyrics += ch2
-    else:
-        lyrics += "\n"
-    ch0 = ch1
-    ch1 = ch2
-print("----")
-print(lyrics)
+def main():
+    # Parse the flags.
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "-t", "--temperature",
+        help="How wild the generator is (a float in [0, 1]).",
+        type=FloatFrom0To1,
+        default=0.7,
+    )
+    parser.add_argument(
+        "-p", "--top_p",
+        help="What ratio of the candidates are considered (a float in [0, 1]).",
+        type=FloatFrom0To1,
+        default=1,
+    )
+    args = parser.parse_args()
 
-lyrics = ""
-ch0 = ""
-ch1 = ""
-ch2 = ""
-for _ in range(NUM_CHARS_PER_SONG):
-    freq_map: Dict[str, int] = quad_freq_map[ch0][ch1][ch2]
-    if len(freq_map) <= 1:
-        freq_map = tri_freq_map[ch1][ch2]
-    if len(freq_map) <= 1:
-        freq_map = bi_freq_map[ch2]
-    ch3 = WeightedSample(freq_map)
-    if ch3:
-        lyrics += ch3
-    else:
-        lyrics += "\n"
-    ch0 = ch1
-    ch1 = ch2
-    ch2 = ch3
-print("----")
-print(lyrics)
+    random.seed()
+    lines = NormalizeFileLines(LUO_DAYOU_LYRICS_FILE)
+    uni_freq_map = BuildUnigramFrequencyMap(lines)
+    bi_freq_map = BuildBigramFrequencyMap(lines)
+    tri_freq_map = BuildTrigramFrequencyMap(lines)
+    quad_freq_map = BuildQuadgramFrequencyMap(lines)
+
+    lyrics = ""
+    for _ in range(NUM_CHARS_PER_SONG):
+        ch = WeightedSample(
+            uni_freq_map, temperature=args.temperature, top_p=args.top_p
+        )
+        if ch:
+            lyrics += ch
+        else:
+            lyrics += "\n"
+    print("----")
+    print(lyrics)
+
+    lyrics = ""
+    ch = ""
+    for _ in range(NUM_CHARS_PER_SONG):
+        freq_map: Dict[str, int] = bi_freq_map[ch]
+        ch = WeightedSample(freq_map, temperature=args.temperature, top_p=args.top_p)
+        if ch:
+            lyrics += ch
+        else:
+            lyrics += "\n"
+    print("----")
+    print(lyrics)
+
+    lyrics = ""
+    ch0 = ""
+    ch1 = ""
+    for _ in range(NUM_CHARS_PER_SONG):
+        freq_map: Dict[str, int] = tri_freq_map[ch0][ch1]
+        if len(freq_map) <= 1:
+            freq_map = bi_freq_map[ch1]
+        ch2 = WeightedSample(freq_map, temperature=args.temperature, top_p=args.top_p)
+        if ch2:
+            lyrics += ch2
+        else:
+            lyrics += "\n"
+        ch0 = ch1
+        ch1 = ch2
+    print("----")
+    print(lyrics)
+
+    lyrics = ""
+    ch0 = ""
+    ch1 = ""
+    ch2 = ""
+    for _ in range(NUM_CHARS_PER_SONG):
+        freq_map: Dict[str, int] = quad_freq_map[ch0][ch1][ch2]
+        if len(freq_map) <= 1:
+            freq_map = tri_freq_map[ch1][ch2]
+        if len(freq_map) <= 1:
+            freq_map = bi_freq_map[ch2]
+        ch3 = WeightedSample(freq_map, temperature=args.temperature, top_p=args.top_p)
+        if ch3:
+            lyrics += ch3
+        else:
+            lyrics += "\n"
+        ch0 = ch1
+        ch1 = ch2
+        ch2 = ch3
+    print("----")
+    print(lyrics)
+
+
+if __name__ == "__main__":
+    main()
