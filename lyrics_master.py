@@ -26,7 +26,7 @@ def NormalizeFileLines(path: str) -> List[str]:
 
         prefix = ""
         for ch in line:
-            if ord(ch) < 128 or ch in "　！…、—○":  # Treat non-Chinese as separater.
+            if ord(ch) < 128 or ch in "　！…、—○《》":  # Treat non-Chinese as separater.
                 if prefix:
                     normalized_lines.append(prefix)
                     prefix = ""
