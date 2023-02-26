@@ -8,8 +8,13 @@ from typing import Dict, List, Tuple, TypeVar
 import argparse
 import collections
 import io
+import json
 import math
+import os
 import random
+import requests
+import sys
+
 
 defaultdict = collections.defaultdict
 
@@ -193,24 +198,68 @@ def GetChar(text: str, index: int) -> str:
     except IndexError:
         return ""
 
-    
+
+def GenerateLyricsByGpt3(start: str, temperature: float, top_p: float) -> None:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        sys.exit(
+            "Please set the OPENAI_API_KEY environment variable to your API key first."
+        )
+
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+    data = json.dumps(
+        {
+            "model": "text-davinci-003",
+            "prompt": "用罗大佑的风格写一首歌词。" + (f"用“{start}”开头，有副歌，不超过200字。" if start else ""),
+            "max_tokens": 500,
+            "temperature": temperature,
+            "top_p": top_p,
+            "frequency_penalty": 0,
+            "presence_penalty": 0,
+        }
+    )
+    completion_endpoint = "https://api.openai.com/v1/completions"
+    result = requests.post(completion_endpoint, headers=headers, data=data)
+    lyrics = result.json()["choices"][0]["text"]
+    print(json.loads(data)["prompt"])
+    print(lyrics)
+
+
 def main():
     # Parse the flags.
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "-t", "--temperature",
+        "-g",
+        "--gpt3",
+        help="Use the GPT-3 API to generate lyrics.",
+        default=False,
+        action="store_true",
+    )
+    parser.add_argument(
+        "-t",
+        "--temperature",
         help="How wild the generator is (a float in [0, 1]).",
         type=FloatFrom0To1,
         default=0.7,
     )
     parser.add_argument(
-        "-p", "--top_p",
+        "-p",
+        "--top_p",
         help="What ratio of the candidates are considered (a float in [0, 1]).",
         type=FloatFrom0To1,
         default=1,
     )
-    parser.add_argument('start', nargs='?', help="The start of the lyrics (the first several characters).", default="")
+    parser.add_argument(
+        "start",
+        nargs="?",
+        help="The start of the lyrics (the first several characters).",
+        default="",
+    )
     args = parser.parse_args()
+
+    if args.gpt3:
+        GenerateLyricsByGpt3(args.start, temperature=args.temperature, top_p=args.top_p)
+        return
 
     random.seed()
     lines = NormalizeFileLines(LUO_DAYOU_LYRICS_FILE)
