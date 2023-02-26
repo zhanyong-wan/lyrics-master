@@ -185,6 +185,15 @@ def FloatFrom0To1(text: str) -> float:
     return x
 
 
+def GetChar(text: str, index: int) -> str:
+    """Get the char at the given index, or "" if the index is invalid."""
+
+    try:
+        return text[index]
+    except IndexError:
+        return ""
+
+    
 def main():
     # Parse the flags.
     parser = argparse.ArgumentParser(description=__doc__)
@@ -200,6 +209,7 @@ def main():
         type=FloatFrom0To1,
         default=1,
     )
+    parser.add_argument('start', nargs='?', help="The start of the lyrics (the first several characters).", default="")
     args = parser.parse_args()
 
     random.seed()
@@ -209,7 +219,7 @@ def main():
     tri_freq_map = BuildTrigramFrequencyMap(lines)
     quad_freq_map = BuildQuadgramFrequencyMap(lines)
 
-    lyrics = ""
+    lyrics = args.start
     for _ in range(NUM_CHARS_PER_SONG):
         ch = WeightedSample(
             uni_freq_map, temperature=args.temperature, top_p=args.top_p
@@ -221,8 +231,8 @@ def main():
     print("----")
     print(lyrics)
 
-    lyrics = ""
-    ch = ""
+    lyrics = args.start
+    ch = GetChar(lyrics, -1)
     for _ in range(NUM_CHARS_PER_SONG):
         freq_map: Dict[str, int] = bi_freq_map[ch]
         ch = WeightedSample(freq_map, temperature=args.temperature, top_p=args.top_p)
@@ -233,9 +243,9 @@ def main():
     print("----")
     print(lyrics)
 
-    lyrics = ""
-    ch0 = ""
-    ch1 = ""
+    lyrics = args.start
+    ch0 = GetChar(lyrics, -2)
+    ch1 = GetChar(lyrics, -1)
     for _ in range(NUM_CHARS_PER_SONG):
         freq_map: Dict[str, int] = tri_freq_map[ch0][ch1]
         if len(freq_map) <= 1:
@@ -250,10 +260,10 @@ def main():
     print("----")
     print(lyrics)
 
-    lyrics = ""
-    ch0 = ""
-    ch1 = ""
-    ch2 = ""
+    lyrics = args.start
+    ch0 = GetChar(lyrics, -3)
+    ch1 = GetChar(lyrics, -2)
+    ch2 = GetChar(lyrics, -1)
     for _ in range(NUM_CHARS_PER_SONG):
         freq_map: Dict[str, int] = quad_freq_map[ch0][ch1][ch2]
         if len(freq_map) <= 1:
