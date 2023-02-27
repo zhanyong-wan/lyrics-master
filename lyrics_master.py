@@ -22,10 +22,26 @@ LUO_DAYOU_LYRICS_FILE = "data/luo_dayou_lyrics.txt"
 NUM_CHARS_PER_SONG = 200
 
 
-def NormalizeFileLines(path: str) -> List[str]:
-    normalized_lines: List[str] = []
+def ParseSongs(path: str) -> Dict[str, List[str]]:
+    """Parses the given lyrics file.
+
+    Returns:
+        Map from song name to lines of lyrics.
+    """
+
+    songs: Dict[str, List[str]] = defaultdict(list)
+    song = None
     for line in io.open(path, mode="r", encoding="utf-8").readlines():
         line = line.strip()
+        # print(f"ZW: {line}")
+        if line.startswith("《"):
+            title = line.lstrip("《").rstrip("》")
+            # print(f"ZW: found 《{title}》")
+            if title in songs:
+                sys.exit(f"Song 《{title}》 appears more than once in file {path}.")
+            song = songs[title]
+            continue
+
         if not line or ("罗大佑" in line):
             continue
 
@@ -33,14 +49,23 @@ def NormalizeFileLines(path: str) -> List[str]:
         for ch in line:
             if ord(ch) < 128 or ch in "　！…、—○《》":  # Treat non-Chinese as separater.
                 if prefix:
-                    normalized_lines.append(prefix)
+                    assert song is not None, "Found lyrics before the first song title."
+                    song.append(prefix)
                     prefix = ""
             else:
                 prefix += ch
         if prefix:
-            normalized_lines.append(prefix)
+            assert song is not None, "Found lyrics before the first song title."
+            song.append(prefix)
             prefix = ""
-    return normalized_lines
+    return songs
+
+
+def NormalizeFileLines(path: str) -> List[str]:
+    lines: List[str] = []
+    for song_lines in ParseSongs(path).values():
+        lines.extend(song_lines)
+    return lines
 
 
 def BuildUnigramFrequencyMap(lines: List[str]) -> Dict[str, int]:
@@ -206,16 +231,27 @@ def GenerateLyricsByGpt3(start: str, temperature: float, top_p: float) -> None:
             "Please set the OPENAI_API_KEY environment variable to your API key first."
         )
 
+    songs = ParseSongs(LUO_DAYOU_LYRICS_FILE)
+    titles = sorted(songs.keys())
+    print("Please select which song to mimic:")
+    for i, title in enumerate(titles):
+        print(f"{i}. {title}")
+    index = input(f"Please input the song index (0-{len(titles) - 1}): ")
+    index = int(index)
+
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+    prompt = "写一首诗。" + (f"用“{start}”做主题。" if start else "") + "不超过200字。模仿以下歌词风格：\n\n"
+    prompt += "\n".join(songs[titles[index]][:8])
+    print(prompt)
     data = json.dumps(
         {
             "model": "text-davinci-003",
-            "prompt": "用罗大佑的风格写一首歌词。" + (f"用“{start}”开头，有副歌，不超过200字。" if start else ""),
-            "max_tokens": 500,
+            "prompt": prompt,
+            "max_tokens": 1024,
             "temperature": temperature,
             "top_p": top_p,
-            "frequency_penalty": 0,
-            "presence_penalty": 0,
+            "frequency_penalty": 2,
+            "presence_penalty": 1,
         }
     )
     completion_endpoint = "https://api.openai.com/v1/completions"
@@ -240,7 +276,7 @@ def main():
         "--temperature",
         help="How wild the generator is (a float in [0, 1]).",
         type=FloatFrom0To1,
-        default=0.7,
+        default=0.8,
     )
     parser.add_argument(
         "-p",
