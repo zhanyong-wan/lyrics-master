@@ -237,15 +237,16 @@ def GetChar(text: str, index: int) -> str:
         return ""
 
 
-def GenerateLyricsByDavinci(start: str, temperature: float, top_p: float) -> None:
-    """Generates lyrics using the Davinci model."""
-
+def GetApiKey() -> str:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         sys.exit(
             "Please set the OPENAI_API_KEY environment variable to your API key first."
         )
+    return api_key
 
+
+def GetSampleSong() -> List[str]:
     songs = ParseSongs(LUO_DAYOU_LYRICS_FILE)
     titles = sorted(songs.keys())
     print("Please select which song to mimic:")
@@ -253,10 +254,18 @@ def GenerateLyricsByDavinci(start: str, temperature: float, top_p: float) -> Non
         print(f"{i}. {title}")
     index = input(f"Please input the song index (0-{len(titles) - 1}): ")
     index = int(index)
+    return songs[titles[index]]
+
+
+def GenerateLyricsByDavinci(start: str, temperature: float, top_p: float) -> None:
+    """Generates lyrics using the Davinci model."""
+
+    api_key = GetApiKey()
+    sample = GetSampleSong()
 
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
-    prompt = "写一首诗。" + (f"用“{start}”做主题。" if start else "") + "不超过200字。模仿以下歌词风格：\n\n"
-    prompt += "\n".join(songs[titles[index]][:8])
+    prompt = "你是一个文学修养高深的流行歌曲词作者。写一首歌词。" + (f"用“{start}”做主题。" if start else "") + "不超过200字。模仿以下歌词风格：\n\n"
+    prompt += "\n".join(sample[:8])
     print(prompt)
     data = json.dumps(
         {
@@ -280,23 +289,12 @@ def GenerateLyricsByDavinci(start: str, temperature: float, top_p: float) -> Non
 def GenerateLyricsByChatGpt(start: str, temperature: float, top_p: float) -> None:
     """Generates lyrics using the chatGPT model."""
 
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        sys.exit(
-            "Please set the OPENAI_API_KEY environment variable to your API key first."
-        )
-
-    songs = ParseSongs(LUO_DAYOU_LYRICS_FILE)
-    titles = sorted(songs.keys())
-    print("Please select which song to mimic:")
-    for i, title in enumerate(titles):
-        print(f"{i}. {title}")
-    index = input(f"Please input the song index (0-{len(titles) - 1}): ")
-    index = int(index)
+    api_key = GetApiKey()
+    sample = GetSampleSong()
 
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
     prompt = "写一首歌词。" + (f"用“{start}”做主题。" if start else "") + "不超过200字。模仿以下歌词风格：\n\n"
-    prompt += "\n".join(songs[titles[index]][:8])
+    prompt += "\n".join(sample[:8])
     print(prompt)
     data = json.dumps(
         {
