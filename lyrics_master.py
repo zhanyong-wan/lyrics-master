@@ -141,11 +141,23 @@ def PrintFrequencyMap(freq_map: Dict[str, int]) -> None:
 T = TypeVar("T")
 
 
-def PickTopP(xs: List[T], top_p: float) -> List[T]:
-    num_to_keep = math.ceil(top_p * len(xs))
-    if num_to_keep <= 0:
-        num_to_keep = 1
-    return xs[:num_to_keep]
+def PickTopP(sorted_xs: List[Tuple[T, int]], top_p: float) -> List[Tuple[T, int]]:
+    """Returns the prefix with the given probability mass."""
+
+    assert sorted_xs
+    assert 0 <= top_p
+    assert top_p <= 1
+
+    total_freq = sum(x_and_freq[1] for x_and_freq in sorted_xs)
+    threshold = total_freq * top_p
+    answer: List[Tuple[T, int]] = []
+    accumulated_freq = 0
+    for x, freq in sorted_xs:
+        answer.append((x, freq))
+        accumulated_freq += freq
+        if accumulated_freq >= threshold:
+            return answer
+    return answer
 
 
 def AdjustWeightByTemperature(
@@ -195,6 +207,7 @@ def WeightedSample(freq_map: Dict[str, int], temperature: float, top_p: float) -
         {ch: freq for ch, freq in candidates}, temperature
     )
     total_weight: float = sum(filtered_freq_map.values())
+    # random() generates a random float in [0, 1).
     r = random.random() * total_weight
     start = 0
     for x, weight in filtered_freq_map.items():
