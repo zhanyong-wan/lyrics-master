@@ -243,9 +243,7 @@ def GetChar(text: str, index: int) -> str:
 def GetApiKey() -> str:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        sys.exit(
-            "请首先将 OPENAI_API_KEY 环境变量设成您的 openAI API key。"
-        )
+        sys.exit("请首先将 OPENAI_API_KEY 环境变量设成您的 openAI API key。")
     return api_key
 
 
@@ -299,6 +297,47 @@ def GenerateLyricsByDavinci(subject: str, temperature: float, top_p: float) -> N
     print(lyrics)
 
 
+def MakeMessages(
+    hint: str, conversation: List[Tuple[str, str]], new_ask: str
+) -> List[Dict[str, str]]:
+    """Generates messages to send to chatGPT from the conversation history."""
+
+    # Messages in the reverse order.
+    reverse_messages = [
+        {
+            "role": "user",
+            "content": new_ask,
+        },
+    ]
+    total_length = 0
+    for ask, answer in reversed(conversation):
+        total_length += len(ask) + len(answer)
+        # If the total conversion is too long, keep the suffix only.
+        if total_length > 4096:
+            break
+
+        reverse_messages.append(
+            {
+                "role": "assistant",
+                "content": answer,
+            },
+        )
+        reverse_messages.append(
+            {
+                "role": "user",
+                "content": ask,
+            },
+        )
+    reverse_messages.append(
+        {
+            "role": "system",
+            "content": hint,
+        },
+    )
+
+    return list(reversed(reverse_messages))
+
+
 def GenerateLyricsByChatGpt(subject: str, temperature: float, top_p: float) -> None:
     """Generates lyrics using the chatGPT model."""
 
@@ -309,45 +348,36 @@ def GenerateLyricsByChatGpt(subject: str, temperature: float, top_p: float) -> N
     hint = "你是一个文学修养高深的流行歌曲词作者。"
     ask1 = f"用“{sample_title}”做主题写一首歌词"
     answer1 = "\n".join(sample_lyrics)
-    ask2 = f"用“{subject}”做主题写一首歌词，模仿前面的风格"
-    data = json.dumps(
-        {
-            "model": "gpt-3.5-turbo-0301",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": hint,
-                },
-                {
-                    "role": "user",
-                    "content": ask1,
-                },
-                {
-                    "role": "assistant",
-                    "content": answer1,
-                },
-                {
-                    "role": "user",
-                    "content": ask2,
-                },
-            ],
-            "max_tokens": 1024,
-            "temperature": temperature,
-            "top_p": top_p,
-            "frequency_penalty": 2,
-            "presence_penalty": 1,
-        }
-    )
+    conversation = [(ask1, answer1)]
+    new_ask = f"用“{subject}”做主题写一首歌词，模仿罗大佑的风格，比如前面这首"
 
     print(f"给chatGPT的提示：\n{hint}\n")
-    print(f"你：\n{ask1}\n")
+    print(f"您：\n{ask1}\n")
     print(f"chatGPT的回答：\n{answer1}\n")
-    print(f"你：\n{ask2}\n")
+    print(f"您：\n{new_ask}\n")
+
     completion_endpoint = "https://api.openai.com/v1/chat/completions"
-    result = requests.post(completion_endpoint, headers=headers, data=data)
-    lyrics = result.json()["choices"][0]["message"]["content"]
-    print()
-    print(f"chatGPT的回答：\n{lyrics}\n")
+    while True:
+        messages = MakeMessages(hint, conversation, new_ask)
+        data = json.dumps(
+            {
+                "model": "gpt-3.5-turbo-0301",
+                "messages": messages,
+                "max_tokens": 1024,
+                "temperature": temperature,
+                "top_p": top_p,
+                "frequency_penalty": 2,
+                "presence_penalty": 1,
+            }
+        )
+
+        result = requests.post(completion_endpoint, headers=headers, data=data)
+        answer = result.json()["choices"][0]["message"]["content"]
+        print()
+        print(f"chatGPT的回答：\n{answer}\n")
+
+        conversation.append((new_ask, answer))
+        new_ask = input("请输入您的意见：")
 
 
 def main():
