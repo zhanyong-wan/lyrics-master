@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""Generates lyrics based on sample input."""
+"""自动生成罗大佑风格的歌词。
+
+使用前请将 OPENAI_API_KEY 环境变量设成您的 openAI API key 值：
+
+export OPENAI_API_KEY=<您的 openAI API key>
+"""
 
 from typing import Dict, List, Tuple, TypeVar
 
@@ -264,7 +269,7 @@ def GetSampleSong() -> Tuple[str, List[str]]:
     return title, songs[title]
 
 
-def GenerateLyricsByDavinci(start: str, temperature: float, top_p: float) -> None:
+def GenerateLyricsByDavinci(subject: str, temperature: float, top_p: float) -> None:
     """Generates lyrics using the Davinci model."""
 
     api_key = GetApiKey()
@@ -273,7 +278,7 @@ def GenerateLyricsByDavinci(start: str, temperature: float, top_p: float) -> Non
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
     prompt = (
         "你是一个文学修养高深的流行歌曲词作者。写一首歌词。"
-        + (f"用“{start}”做主题。" if start else "")
+        + (f"用“{subject}”做主题。" if subject else "")
         + "不超过200字。模仿以下歌词风格：\n\n"
     )
     prompt += "\n".join(sample[:8])
@@ -297,7 +302,7 @@ def GenerateLyricsByDavinci(start: str, temperature: float, top_p: float) -> Non
     print(lyrics)
 
 
-def GenerateLyricsByChatGpt(start: str, temperature: float, top_p: float) -> None:
+def GenerateLyricsByChatGpt(subject: str, temperature: float, top_p: float) -> None:
     """Generates lyrics using the chatGPT model."""
 
     api_key = GetApiKey()
@@ -307,7 +312,7 @@ def GenerateLyricsByChatGpt(start: str, temperature: float, top_p: float) -> Non
     hint = "你是一个文学修养高深的流行歌曲词作者。"
     ask1 = f"用“{sample_title}”做主题写一首歌词"
     answer1 = "\n".join(sample_lyrics)
-    ask2 = f"用“{start}”做主题写一首歌词"
+    ask2 = f"用“{subject}”做主题写一首歌词"
     data = json.dumps(
         {
             "model": "gpt-3.5-turbo-0301",
@@ -354,48 +359,48 @@ def main():
     parser.add_argument(
         "-c",
         "--chatgpt",
-        help="Use the chatGPT model to generate lyrics.",
+        help="用 chatGPT 模型来产生歌词",
         default=False,
         action="store_true",
     )
     parser.add_argument(
         "-d",
         "--davinci",
-        help="Use the Davinci model to generate lyrics.",
+        help="用 Davinci 模型来产生歌词",
         default=False,
         action="store_true",
     )
     parser.add_argument(
         "-t",
         "--temperature",
-        help="How wild the generator is (a float in [0, 1]).",
+        help="想象力有多狂野 ([0, 1]区间的实数)",
         type=FloatFrom0To1,
         default=0.8,
     )
     parser.add_argument(
         "-p",
         "--top_p",
-        help="What ratio of the candidates are considered (a float in [0, 1]).",
+        help="只考虑头部概率的选择 ([0, 1]区间的实数)",
         type=FloatFrom0To1,
         default=1,
     )
     parser.add_argument(
-        "start",
+        "subject",
         nargs="?",
-        help="The start of the lyrics (the first several characters).",
+        help="歌曲的主题",
         default="",
     )
     args = parser.parse_args()
 
     if args.chatgpt:
         GenerateLyricsByChatGpt(
-            args.start, temperature=args.temperature, top_p=args.top_p
+            args.subject, temperature=args.temperature, top_p=args.top_p
         )
         return
 
     if args.davinci:
         GenerateLyricsByDavinci(
-            args.start, temperature=args.temperature, top_p=args.top_p
+            args.subject, temperature=args.temperature, top_p=args.top_p
         )
         return
 
@@ -406,7 +411,7 @@ def main():
     tri_freq_map = BuildTrigramFrequencyMap(lines)
     quad_freq_map = BuildQuadgramFrequencyMap(lines)
 
-    lyrics = args.start
+    lyrics = args.subject
     for _ in range(NUM_CHARS_PER_SONG):
         ch = WeightedSample(
             uni_freq_map, temperature=args.temperature, top_p=args.top_p
@@ -418,7 +423,7 @@ def main():
     print("----")
     print(lyrics)
 
-    lyrics = args.start
+    lyrics = args.subject
     ch = GetChar(lyrics, -1)
     for _ in range(NUM_CHARS_PER_SONG):
         freq_map: Dict[str, int] = bi_freq_map[ch]
@@ -430,7 +435,7 @@ def main():
     print("----")
     print(lyrics)
 
-    lyrics = args.start
+    lyrics = args.subject
     ch0 = GetChar(lyrics, -2)
     ch1 = GetChar(lyrics, -1)
     for _ in range(NUM_CHARS_PER_SONG):
@@ -447,7 +452,7 @@ def main():
     print("----")
     print(lyrics)
 
-    lyrics = args.start
+    lyrics = args.subject
     ch0 = GetChar(lyrics, -3)
     ch1 = GetChar(lyrics, -2)
     ch2 = GetChar(lyrics, -1)
