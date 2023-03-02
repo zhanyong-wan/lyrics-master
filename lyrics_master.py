@@ -38,12 +38,10 @@ def ParseSongs(path: str) -> Dict[str, List[str]]:
     song = None
     for line in io.open(path, mode="r", encoding="utf-8").readlines():
         line = line.strip()
-        # print(f"ZW: {line}")
         if line.startswith("《"):
             title = line.lstrip("《").rstrip("》")
-            # print(f"ZW: found 《{title}》")
             if title in songs:
-                sys.exit(f"Song 《{title}》 appears more than once in file {path}.")
+                sys.exit(f"歌曲《{title}》在 {path} 文件里出现了多次。")
             song = songs[title]
             continue
 
@@ -54,13 +52,13 @@ def ParseSongs(path: str) -> Dict[str, List[str]]:
         for ch in line:
             if ord(ch) < 128 or ch in "　！…、—○《》":  # Treat non-Chinese as separater.
                 if prefix:
-                    assert song is not None, "Found lyrics before the first song title."
+                    assert song is not None, "在第一首歌名之前出现了歌词。"
                     song.append(prefix)
                     prefix = ""
             else:
                 prefix += ch
         if prefix:
-            assert song is not None, "Found lyrics before the first song title."
+            assert song is not None, "在第一首歌名之前出现了歌词。"
             song.append(prefix)
             prefix = ""
     return songs
@@ -246,7 +244,7 @@ def GetApiKey() -> str:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         sys.exit(
-            "Please set the OPENAI_API_KEY environment variable to your API key first."
+            "请首先将 OPENAI_API_KEY 环境变量设成您的 openAI API key。"
         )
     return api_key
 
@@ -260,10 +258,9 @@ def GetSampleSong() -> Tuple[str, List[str]]:
 
     songs = ParseSongs(LUO_DAYOU_LYRICS_FILE)
     titles = sorted(songs.keys())
-    print("Please select which song to mimic:")
     for i, title in enumerate(titles):
         print(f"{i}. {title}")
-    index = input(f"Please input the song index (0-{len(titles) - 1}): ")
+    index = input(f"请选择模仿哪一首歌 (0-{len(titles) - 1}): ")
     index = int(index)
     title = titles[index]
     return title, songs[title]
@@ -312,7 +309,7 @@ def GenerateLyricsByChatGpt(subject: str, temperature: float, top_p: float) -> N
     hint = "你是一个文学修养高深的流行歌曲词作者。"
     ask1 = f"用“{sample_title}”做主题写一首歌词"
     answer1 = "\n".join(sample_lyrics)
-    ask2 = f"用“{subject}”做主题写一首歌词"
+    ask2 = f"用“{subject}”做主题写一首歌词，模仿前面的风格"
     data = json.dumps(
         {
             "model": "gpt-3.5-turbo-0301",
