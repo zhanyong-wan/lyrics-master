@@ -246,7 +246,13 @@ def GetApiKey() -> str:
     return api_key
 
 
-def GetSampleSong() -> List[str]:
+def GetSampleSong() -> Tuple[str, List[str]]:
+    """Gets a sample song written by 罗大佑, based on the user selection.
+
+    Returns:
+        a (song title, lyrics) pair
+    """
+
     songs = ParseSongs(LUO_DAYOU_LYRICS_FILE)
     titles = sorted(songs.keys())
     print("Please select which song to mimic:")
@@ -254,17 +260,22 @@ def GetSampleSong() -> List[str]:
         print(f"{i}. {title}")
     index = input(f"Please input the song index (0-{len(titles) - 1}): ")
     index = int(index)
-    return songs[titles[index]]
+    title = titles[index]
+    return title, songs[title]
 
 
 def GenerateLyricsByDavinci(start: str, temperature: float, top_p: float) -> None:
     """Generates lyrics using the Davinci model."""
 
     api_key = GetApiKey()
-    sample = GetSampleSong()
+    _, sample = GetSampleSong()
 
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
-    prompt = "你是一个文学修养高深的流行歌曲词作者。写一首歌词。" + (f"用“{start}”做主题。" if start else "") + "不超过200字。模仿以下歌词风格：\n\n"
+    prompt = (
+        "你是一个文学修养高深的流行歌曲词作者。写一首歌词。"
+        + (f"用“{start}”做主题。" if start else "")
+        + "不超过200字。模仿以下歌词风格：\n\n"
+    )
     prompt += "\n".join(sample[:8])
     print(prompt)
     data = json.dumps(
@@ -290,23 +301,32 @@ def GenerateLyricsByChatGpt(start: str, temperature: float, top_p: float) -> Non
     """Generates lyrics using the chatGPT model."""
 
     api_key = GetApiKey()
-    sample = GetSampleSong()
+    sample_title, sample_lyrics = GetSampleSong()
 
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
-    prompt = "写一首歌词。" + (f"用“{start}”做主题。" if start else "") + "不超过200字。模仿以下歌词风格：\n\n"
-    prompt += "\n".join(sample[:8])
-    print(prompt)
+    hint = "你是一个文学修养高深的流行歌曲词作者。"
+    ask1 = f"用“{sample_title}”做主题写一首歌词"
+    answer1 = "\n".join(sample_lyrics)
+    ask2 = f"用“{start}”做主题写一首歌词"
     data = json.dumps(
         {
             "model": "gpt-3.5-turbo-0301",
             "messages": [
                 {
                     "role": "system",
-                    "content": "你是一个文学修养高深的流行歌曲词作者。",
+                    "content": hint,
                 },
                 {
                     "role": "user",
-                    "content": prompt,
+                    "content": ask1,
+                },
+                {
+                    "role": "assistant",
+                    "content": answer1,
+                },
+                {
+                    "role": "user",
+                    "content": ask2,
                 },
             ],
             "max_tokens": 1024,
@@ -316,14 +336,18 @@ def GenerateLyricsByChatGpt(start: str, temperature: float, top_p: float) -> Non
             "presence_penalty": 1,
         }
     )
+
+    print(f"给chatGPT的提示：\n{hint}\n")
+    print(f"你：\n{ask1}\n")
+    print(f"chatGPT的回答：\n{answer1}\n")
+    print(f"你：\n{ask2}\n")
     completion_endpoint = "https://api.openai.com/v1/chat/completions"
     result = requests.post(completion_endpoint, headers=headers, data=data)
     lyrics = result.json()["choices"][0]["message"]["content"]
     print()
-    print("chatGPT的回答：")
-    print(lyrics)
+    print(f"chatGPT的回答：\n{lyrics}\n")
 
-    
+
 def main():
     # Parse the flags.
     parser = argparse.ArgumentParser(description=__doc__)
@@ -364,11 +388,15 @@ def main():
     args = parser.parse_args()
 
     if args.chatgpt:
-        GenerateLyricsByChatGpt(args.start, temperature=args.temperature, top_p=args.top_p)
+        GenerateLyricsByChatGpt(
+            args.start, temperature=args.temperature, top_p=args.top_p
+        )
         return
-    
+
     if args.davinci:
-        GenerateLyricsByDavinci(args.start, temperature=args.temperature, top_p=args.top_p)
+        GenerateLyricsByDavinci(
+            args.start, temperature=args.temperature, top_p=args.top_p
+        )
         return
 
     random.seed()
