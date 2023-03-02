@@ -237,7 +237,9 @@ def GetChar(text: str, index: int) -> str:
         return ""
 
 
-def GenerateLyricsByGpt3(start: str, temperature: float, top_p: float) -> None:
+def GenerateLyricsByDavinci(start: str, temperature: float, top_p: float) -> None:
+    """Generates lyrics using the Davinci model."""
+
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         sys.exit(
@@ -307,7 +309,7 @@ def main():
     args = parser.parse_args()
 
     if args.davinci:
-        GenerateLyricsByGpt3(args.start, temperature=args.temperature, top_p=args.top_p)
+        GenerateLyricsByDavinci(args.start, temperature=args.temperature, top_p=args.top_p)
         return
 
     random.seed()
