@@ -279,8 +279,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "-g",
-        "--gpt3",
-        help="Use the GPT-3 API to generate lyrics.",
+        "--davinci",
+        help="Use the Davinci model to generate lyrics.",
         default=False,
         action="store_true",
     )
@@ -306,7 +306,7 @@ def main():
     )
     args = parser.parse_args()
 
-    if args.gpt3:
+    if args.davinci:
         GenerateLyricsByGpt3(args.start, temperature=args.temperature, top_p=args.top_p)
         return
 
