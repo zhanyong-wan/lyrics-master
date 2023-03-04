@@ -1,6 +1,6 @@
-# lyrics-master
+# 络打油
 
-基于 chatGPT API 的罗大佑风格歌词生成器。
+（神经网）络打油 - 基于 chatGPT API 的罗大佑风格歌词生成器。
 
 用法：
 

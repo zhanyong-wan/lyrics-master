@@ -271,30 +271,32 @@ def GenerateLyricsByDavinci(subject: str, temperature: float, top_p: float) -> N
     _, sample = GetSampleSong()
 
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+    completion_endpoint = "https://api.openai.com/v1/completions"
     prompt = (
         "你是一个文学修养高深的流行歌曲词作者。写一首歌词。"
         + (f"用“{subject}”做主题。" if subject else "")
-        + "不超过200字。模仿以下歌词风格：\n\n"
+        + "模仿以下歌词风格：\n\n"
     )
-    prompt += "\n".join(sample[:8])
-    print(prompt)
-    data = json.dumps(
-        {
-            "model": "text-davinci-003",
-            "prompt": prompt,
-            "max_tokens": 1024,
-            "temperature": temperature,
-            "top_p": top_p,
-            "frequency_penalty": 2,
-            "presence_penalty": 1,
-        }
-    )
-    completion_endpoint = "https://api.openai.com/v1/completions"
-    result = requests.post(completion_endpoint, headers=headers, data=data)
-    lyrics = result.json()["choices"][0]["text"]
-    print()
-    print("Davinci的回答：")
-    print(lyrics)
+    prompt += "\n".join(sample[:16])
+    while True:
+        print(f"您：\n{prompt}\n")
+        data = json.dumps(
+            {
+                "model": "text-davinci-003",
+                "prompt": prompt,
+                "max_tokens": 1024,
+                "temperature": temperature,
+                "top_p": top_p,
+                "frequency_penalty": 2,
+                "presence_penalty": 1,
+            }
+        )
+        result = requests.post(completion_endpoint, headers=headers, data=data)
+        answer = result.json()["choices"][0]["text"]
+        print()
+        print("Davinci的回答：")
+        print(answer)
+        prompt = input("请输入您的意见：")
 
 
 def MakeMessages(
