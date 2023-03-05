@@ -180,6 +180,20 @@ def AdjustWeightByTemperature(
     }
 
 
+def WeightedSample1(freq_map: Dict[str, int]) -> str:
+    """Picks one char randomly."""
+
+    total_weight: float = sum(freq_map.values())
+    # random() generates a random float in [0, 1).
+    r = random.random() * total_weight
+    start = 0
+    for x, weight in freq_map.items():
+        if start <= r and r < start + weight:
+            return x
+        start += weight
+    return ""
+
+
 def WeightedSample(freq_map: Dict[str, int], temperature: float, top_p: float) -> str:
     """Picks one char randomly.
 
