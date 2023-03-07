@@ -71,8 +71,8 @@ def NormalizeFileLines(path: str) -> List[str]:
     return lines
 
 
-def BuildUnigramFrequencyMap(lines: List[str]) -> Dict[str, int]:
-    map: Dict[str, int] = defaultdict(lambda: 0)
+def BuildUnigramFrequencyMap(lines: List[str]) -> Dict[str, float]:
+    map: Dict[str, float] = defaultdict(lambda: 0)
     for line in lines:
         for ch in line:
             map[ch] += 1
@@ -80,8 +80,8 @@ def BuildUnigramFrequencyMap(lines: List[str]) -> Dict[str, int]:
     return map
 
 
-def BuildBigramFrequencyMap(lines: List[str]) -> Dict[str, Dict[str, int]]:
-    map: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(lambda: 0))
+def BuildBigramFrequencyMap(lines: List[str]) -> Dict[str, Dict[str, float]]:
+    map: Dict[str, Dict[str, float]] = defaultdict(lambda: defaultdict(lambda: 0))
     for line in lines:
         ch0 = ""
         ch1 = ""
@@ -92,8 +92,10 @@ def BuildBigramFrequencyMap(lines: List[str]) -> Dict[str, Dict[str, int]]:
     return map
 
 
-def BuildTrigramFrequencyMap(lines: List[str]) -> Dict[str, Dict[str, Dict[str, int]]]:
-    map: Dict[str, Dict[str, Dict[str, int]]] = defaultdict(
+def BuildTrigramFrequencyMap(
+    lines: List[str],
+) -> Dict[str, Dict[str, Dict[str, float]]]:
+    map: Dict[str, Dict[str, Dict[str, float]]] = defaultdict(
         lambda: defaultdict(lambda: defaultdict(lambda: 0))
     )
     for line in lines:
@@ -111,8 +113,8 @@ def BuildTrigramFrequencyMap(lines: List[str]) -> Dict[str, Dict[str, Dict[str, 
 
 def BuildQuadgramFrequencyMap(
     lines: List[str],
-) -> Dict[str, Dict[str, Dict[str, Dict[str, int]]]]:
-    map: Dict[str, Dict[str, Dict[str, Dict[str, int]]]] = defaultdict(
+) -> Dict[str, Dict[str, Dict[str, Dict[str, float]]]]:
+    map: Dict[str, Dict[str, Dict[str, Dict[str, float]]]] = defaultdict(
         lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: 0)))
     )
     for line in lines:
@@ -131,8 +133,8 @@ def BuildQuadgramFrequencyMap(
     return map
 
 
-def PrintFrequencyMap(freq_map: Dict[str, int]) -> None:
-    freq_list: List[Tuple[int, str]] = []
+def PrintFrequencyMap(freq_map: Dict[str, float]) -> None:
+    freq_list: List[Tuple[float, str]] = []
     for ch, count in freq_map.items():
         freq_list.append((count, ch))
     freq_list = sorted(freq_list, reverse=True)
@@ -144,19 +146,21 @@ def PrintFrequencyMap(freq_map: Dict[str, int]) -> None:
 T = TypeVar("T")
 
 
-def PickTopP(sorted_xs: List[Tuple[T, int]], top_p: float) -> List[Tuple[T, int]]:
+def PickTopP(freq_map: Dict[T, float], top_p: float) -> Dict[T, float]:
     """Returns the prefix with the given probability mass."""
 
-    assert sorted_xs
     assert 0 <= top_p
     assert top_p <= 1
 
-    total_freq = sum(x_and_freq[1] for x_and_freq in sorted_xs)
+    sorted_list = sorted(
+        freq_map.items(), key=lambda ch_and_freq: ch_and_freq[1], reverse=True
+    )
+    total_freq = sum(freq_map.values())
     threshold = total_freq * top_p
-    answer: List[Tuple[T, int]] = []
+    answer: Dict[T, float] = {}
     accumulated_freq = 0
-    for x, freq in sorted_xs:
-        answer.append((x, freq))
+    for x, freq in sorted_list:
+        answer[x] = freq
         accumulated_freq += freq
         if accumulated_freq >= threshold:
             return answer
@@ -164,23 +168,22 @@ def PickTopP(sorted_xs: List[Tuple[T, int]], top_p: float) -> List[Tuple[T, int]
 
 
 def AdjustWeightByTemperature(
-    freq_map: Dict[str, int], temperature: float
+    freq_map: Dict[str, float], temperature: float
 ) -> Dict[str, float]:
 
     assert 0 <= temperature
-    assert temperature <= 1
+    assert temperature <= 2
 
-    # map: 0 => 10, 0.5 => 1, 1 => 0
-    #   0.5 - t: 0 => 0.5, 0.5 => 0, 1 => -0.5
-    #   1 - 2t: 0 => 1, 0.5 => 0, 1 => -1
-    #   10^(1 - 2t): 0 => 10, 0.5 => 1, 1 => 0.1
+    if temperature < 0.01:
+        temperature = 0.01  # Avoid overflow with tiny temperature value.
+    total_freq = sum(freq_map.values())
     return {
-        ch: math.pow(freq, math.pow(10, 1 - 2 * temperature))
+        ch: math.pow(freq / total_freq, 1 / temperature)
         for ch, freq in freq_map.items()
     }
 
 
-def WeightedSample1(freq_map: Dict[str, int]) -> str:
+def WeightedSample(freq_map: Dict[str, float]) -> str:
     """Picks one char randomly."""
 
     total_weight: float = sum(freq_map.values())
@@ -194,7 +197,28 @@ def WeightedSample1(freq_map: Dict[str, int]) -> str:
     return ""
 
 
-def WeightedSample(freq_map: Dict[str, int], temperature: float, top_p: float) -> str:
+def WeightedSampleWithTemperature(
+    freq_map: Dict[str, float], temperature: float
+) -> str:
+    """Picks one char randomly.
+
+    Args:
+        freq_map: map from a char to its frequency
+        temperature: a float in [0, 2] that determines how wild the pick can be.
+            0 means that we will always pick the char with the highest frequency.
+            1 means that the probability of a char being picked is proportional
+            to its frequency in the map.
+    """
+
+    assert 0 <= temperature
+    assert temperature <= 2
+
+    return WeightedSample(AdjustWeightByTemperature(freq_map, temperature))
+
+
+def WeightedSampleWithTemperatureTopP(
+    freq_map: Dict[str, float], temperature: float, top_p: float
+) -> str:
     """Picks one char randomly.
 
     Args:
@@ -211,27 +235,24 @@ def WeightedSample(freq_map: Dict[str, int], temperature: float, top_p: float) -
     """
 
     assert 0 <= temperature
-    assert temperature <= 1
+    assert temperature <= 2
     assert 0 <= top_p
     assert top_p <= 1
 
-    # Sort the entries by frequency, descending.
-    sorted_list = sorted(
-        freq_map.items(), key=lambda ch_and_freq: ch_and_freq[1], reverse=True
+    return WeightedSampleWithTemperature(
+        PickTopP(freq_map, top_p), temperature=temperature
     )
-    candidates = PickTopP(sorted_list, top_p)
-    filtered_freq_map = AdjustWeightByTemperature(
-        {ch: freq for ch, freq in candidates}, temperature
-    )
-    total_weight: float = sum(filtered_freq_map.values())
-    # random() generates a random float in [0, 1).
-    r = random.random() * total_weight
-    start = 0
-    for x, weight in filtered_freq_map.items():
-        if start <= r and r < start + weight:
-            return x
-        start += weight
-    return ""
+
+
+def FloatFrom0To2(text: str) -> float:
+    try:
+        x = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text} is not a floating-point literal.")
+
+    if x < 0.0 or x > 2.0:
+        raise argparse.ArgumentTypeError(f"{text} is not in the range [0.0, 2.0].")
+    return x
 
 
 def FloatFrom0To1(text: str) -> float:
@@ -416,8 +437,8 @@ def main():
     parser.add_argument(
         "-t",
         "--temperature",
-        help="想象力有多狂野 ([0, 1]区间的实数)",
-        type=FloatFrom0To1,
+        help="想象力有多狂野 ([0, 2]区间的实数)",
+        type=FloatFrom0To2,
         default=0.8,
     )
     parser.add_argument(
@@ -456,7 +477,7 @@ def main():
 
     lyrics = args.subject
     for _ in range(NUM_CHARS_PER_SONG):
-        ch = WeightedSample(
+        ch = WeightedSampleWithTemperatureTopP(
             uni_freq_map, temperature=args.temperature, top_p=args.top_p
         )
         if ch:
@@ -469,8 +490,10 @@ def main():
     lyrics = args.subject
     ch = GetChar(lyrics, -1)
     for _ in range(NUM_CHARS_PER_SONG):
-        freq_map: Dict[str, int] = bi_freq_map[ch]
-        ch = WeightedSample(freq_map, temperature=args.temperature, top_p=args.top_p)
+        freq_map: Dict[str, float] = bi_freq_map[ch]
+        ch = WeightedSampleWithTemperatureTopP(
+            freq_map, temperature=args.temperature, top_p=args.top_p
+        )
         if ch:
             lyrics += ch
         else:
@@ -482,10 +505,12 @@ def main():
     ch0 = GetChar(lyrics, -2)
     ch1 = GetChar(lyrics, -1)
     for _ in range(NUM_CHARS_PER_SONG):
-        freq_map: Dict[str, int] = tri_freq_map[ch0][ch1]
+        freq_map: Dict[str, float] = tri_freq_map[ch0][ch1]
         if len(freq_map) <= 1:
             freq_map = bi_freq_map[ch1]
-        ch2 = WeightedSample(freq_map, temperature=args.temperature, top_p=args.top_p)
+        ch2 = WeightedSampleWithTemperatureTopP(
+            freq_map, temperature=args.temperature, top_p=args.top_p
+        )
         if ch2:
             lyrics += ch2
         else:
@@ -500,12 +525,14 @@ def main():
     ch1 = GetChar(lyrics, -2)
     ch2 = GetChar(lyrics, -1)
     for _ in range(NUM_CHARS_PER_SONG):
-        freq_map: Dict[str, int] = quad_freq_map[ch0][ch1][ch2]
+        freq_map: Dict[str, float] = quad_freq_map[ch0][ch1][ch2]
         if len(freq_map) <= 1:
             freq_map = tri_freq_map[ch1][ch2]
         if len(freq_map) <= 1:
             freq_map = bi_freq_map[ch2]
-        ch3 = WeightedSample(freq_map, temperature=args.temperature, top_p=args.top_p)
+        ch3 = WeightedSampleWithTemperatureTopP(
+            freq_map, temperature=args.temperature, top_p=args.top_p
+        )
         if ch3:
             lyrics += ch3
         else:
